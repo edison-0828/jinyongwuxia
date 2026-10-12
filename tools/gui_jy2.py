@@ -1,309 +1,456 @@
 #!/usr/bin/env python3
-"""金庸群俠傳2 修改器 GUI (tkinter, stdlib only)。引擎: trainer.Sol。"""
+"""金庸群侠传 2 存档管理器：清晰、安全、只写入真正改动的字段。"""
 import os
-import sys
 import subprocess
+import sys
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox, ttk
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import trainer as T  # noqa: E402
 from amf import pkg_root  # noqa: E402
 
-ATTR_CN = {'LV': '等級', 'JYZ': '經驗', 'S_M': '生命', 'S_M0': '當前生命',
- 'N_L': '內力', 'N_L0': '當前內力', 'F_Y': '福緣', 'S_W': '聲望', 'W_X': '悟性',
- 'L_D': '力道', 'L_D0': '力道(當)', 'H_T': '護體', 'H_T0': '護體(當)',
- 'S_F': '身法', 'Q_Z': '拳掌', 'Y_J': '御劍', 'A_Q': '暗器', 'Y_L': '醫療',
- 'Y_D': '用毒', 'J_D': '解毒', 'X_Y': '俠義', 'Y_Z': '銀兩', 'XXD': '學習點'}
-
-SKILLS = [
- ('taijiquan', '太極拳'), ('qishang', '七傷拳'), ('xingyi', '形意拳'),
- ('anran', '黯然銷魂掌'), ('tianshan', '天山六陽掌'), ('tiezhang', '鐵掌'),
- ('liumai', '六脈神劍'), ('nianhua', '拈花指'), ('taijijian', '太極劍'),
- ('wuyue', '五嶽劍法'), ('xuantie', '玄鐵劍法'), ('jiuyang', '九陽神功'),
- ('beiming', '北冥'), ('hanbing', '寒冰真氣'), ('kongming', '空明拳'),
- ('luohan', '羅漢拳'), ('xianglong', '降龍十八掌'), ('mianzhang', '綿掌'),
- ('hunyuan', '混元掌'), ('yiyang', '一陽指'), ('tanzhi', '彈指神通'),
- ('canhe', '參合指'), ('jinshe', '金蛇劍法'), ('dugu', '獨孤九劍'),
- ('pixie', '辟邪劍法'), ('taixuan', '太玄經神功'), ('longxiang', '龍象般若功'),
- ('jinzhong', '吐納術'), ('jichujian', '基礎劍'), ('jichuquan', '基礎拳'),
- ('kkk', '自創等級'), ('hhh', '九陰神爪'),
+BASIC_FIELDS = [
+    ('name_1', '姓'), ('name_2', '名'), ('jjj', '自创武学名'),
+    ('Menpai', '门派'), ('Chenhao', '称号'),
 ]
-ATTRS = ['LV', 'JYZ', 'S_M', 'S_M0', 'N_L', 'N_L0', 'F_Y', 'S_W', 'W_X',
-         'L_D', 'L_D0', 'H_T', 'H_T0', 'S_F', 'Q_Z', 'Y_J', 'A_Q',
-         'Y_L', 'Y_D', 'J_D', 'X_Y', 'Y_Z', 'XXD']
+ATTRIBUTE_GROUPS = [
+    ('进度与资源', [('LV', '等级'), ('JYZ', '经验'), ('XXD', '学习点'),
+                 ('Y_Z', '银两'), ('S_W', '声望'), ('X_Y', '侠义')]),
+    ('生命与内力', [('S_M', '生命 S_M'), ('S_M0', '生命 S_M0'),
+                  ('N_L', '内力 N_L'), ('N_L0', '内力 N_L0')]),
+    ('基础属性', [('F_Y', '福缘'), ('W_X', '悟性'), ('L_D', '力道'),
+                ('L_D0', '力道(当前)'), ('H_T', '护体'),
+                ('H_T0', '护体(当前)'), ('S_F', '身法')]),
+    ('战斗技艺', [('Q_Z', '拳掌'), ('Y_J', '御剑'), ('A_Q', '暗器'),
+                ('Y_L', '医疗'), ('Y_D', '用毒'), ('J_D', '解毒')]),
+]
+SKILLS = [
+    ('taijiquan', '太极拳'), ('qishang', '七伤拳'), ('xingyi', '形意拳'),
+    ('anran', '黯然销魂掌'), ('tianshan', '天山六阳掌'), ('tiezhang', '铁掌'),
+    ('liumai', '六脉神剑'), ('nianhua', '拈花指'), ('taijijian', '太极剑'),
+    ('wuyue', '五岳剑法'), ('xuantie', '玄铁剑法'), ('jiuyang', '九阳神功'),
+    ('beiming', '北冥神功'), ('hanbing', '寒冰真气'), ('kongming', '空明拳'),
+    ('luohan', '罗汉拳'), ('xianglong', '降龙十八掌'), ('mianzhang', '绵掌'),
+    ('hunyuan', '混元掌'), ('yiyang', '一阳指'), ('tanzhi', '弹指神通'),
+    ('canhe', '参合指'), ('jinshe', '金蛇剑法'), ('dugu', '独孤九剑'),
+    ('pixie', '辟邪剑法'), ('taixuan', '太玄经神功'), ('longxiang', '龙象般若功'),
+    ('jinzhong', '吐纳术'), ('jichujian', '基础剑法'), ('jichuquan', '基础拳法'),
+    ('kkk', '自创武功'), ('hhh', '九阴神爪'),
+]
+SKILL_NAMES = dict(SKILLS)
 
 
 def inner_text(markup):
-    """name_1/name_2 存的是整段 TEXTFORMAT，只取第一段明文；沒有就原樣回傳。"""
     import re
-    runs = [r for r in re.findall(r'>([^<>]*)</FONT>', markup) if r.strip()]
-    if runs:
-        return runs[0]
-    i = markup.find('">')
-    j = markup.find('</FONT>')
-    if i >= 0 and j > i:
-        return markup[i + 2:j]
-    return markup
+    runs = [value for value in re.findall(r'>([^<>]*)</FONT>', markup) if value.strip()]
+    return runs[0] if runs else markup
 
 
-def set_inner(raw_bytes, new_text):
-    """等長替換第一段明文區(補空格)，回傳新整段 bytes。"""
-    import re
-    s = raw_bytes.decode('utf-8', 'replace')
-    nb = new_text.encode('utf-8')
-    m = None
-    for mm in re.finditer(r'>([^<>]*)</FONT>', s):
-        if mm.group(1).strip():
-            m = mm
-            break
-    if m is None:
-        if len(nb) > len(raw_bytes):
-            raise ValueError('太長(上限%d bytes)' % len(raw_bytes))
-        return nb + b' ' * (len(raw_bytes) - len(nb))
-    a = len(s[:m.start(1)].encode('utf-8'))
-    b = len(s[:m.end(1)].encode('utf-8'))
-    cap = b - a
-    if len(nb) > cap:
-        raise ValueError('太長(上限%d bytes)' % cap)
-    return raw_bytes[:a] + nb + b' ' * (cap - len(nb)) + raw_bytes[b:]
+def number_text(value):
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return '' if value is None else str(value)
+
+
+def skill_keys(skill_id):
+    if skill_id == 'kkk':
+        return 'kkk', 'lll'
+    if skill_id == 'hhh':
+        return 'hhh', 'iii'
+    return 'lv_' + skill_id, 'exp_' + skill_id
 
 
 class App:
     def __init__(self, root):
         self.root = root
-        root.title('金庸群俠傳2 修改器')
-        self.slot = tk.IntVar(value=1)
-        self.status = tk.StringVar(value='就緒')
-        bar = ttk.Frame(root)
-        bar.pack(fill='x', padx=8, pady=6)
-        ttk.Label(bar, text='存檔').pack(side='left')
-        ttk.OptionMenu(bar, self.slot, 1, 1, 2, 3,
-                       command=lambda *_: self.refresh()).pack(side='left', padx=4)
-        ttk.Button(bar, text='重新讀取', command=self.refresh).pack(side='left')
-        ttk.Button(bar, text='啟動遊戲', command=self.launch).pack(side='right')
-        self.info = tk.StringVar()
-        ttk.Label(bar, textvariable=self.info).pack(side='right', padx=8)
-        nb = ttk.Notebook(root)
-        nb.pack(fill='both', expand=True, padx=8)
+        self.path = None
+        self.loading = False
+        self.loaded = {}
+        self.skill_source = {}
+        self.skill_pending = {}
         self.vars = {}
-        p1 = ttk.Frame(nb)
-        nb.add(p1, text='基本')
-        for i, (k, name) in enumerate([('name_1', '姓'), ('name_2', '名'),
-                                       ('jjj', '自創武學名'), ('Menpai', '門派'),
-                                       ('Chenhao', '稱號')]):
-            ttk.Label(p1, text='%s %s' % (name, k)).grid(row=i, column=0, sticky='e', padx=4, pady=3)
-            v = tk.StringVar()
-            ttk.Entry(p1, textvariable=v, width=30).grid(row=i, column=1, sticky='w')
-            self.vars[k] = v
-        ttk.Button(p1, text='套用基本', command=self.apply_basic).grid(row=5, column=1, sticky='w', pady=6)
-        p2 = ttk.Frame(nb)
-        nb.add(p2, text='屬性')
-        for i, k in enumerate(ATTRS):
-            ttk.Label(p2, text='%s %s' % (ATTR_CN.get(k, k), k)).grid(row=i // 4, column=(i % 4) * 2, sticky='e', padx=2, pady=2)
-            v = tk.StringVar()
-            ttk.Entry(p2, textvariable=v, width=10).grid(row=i // 4, column=(i % 4) * 2 + 1, sticky='w')
-            self.vars[k] = v
-        ttk.Button(p2, text='套用屬性', command=self.apply_attrs).grid(row=7, column=1, sticky='w', pady=6)
-        p3 = ttk.Frame(nb)
-        nb.add(p3, text='武功')
-        ttk.Label(p3, text='武功').grid(row=0, column=0, sticky='e')
-        self.skill = tk.StringVar(value=self.slabel(SKILLS[0][0]))
-        ttk.OptionMenu(p3, self.skill, self.slabel(SKILLS[0][0]),
-                       *[self.slabel(s[0]) for s in SKILLS],
-                       command=lambda *_: self.skill_load()).grid(row=0, column=1, sticky='w')
-        self.skill_lv = tk.StringVar()
-        self.skill_exp = tk.StringVar()
-        ttk.Label(p3, text='等級 lv_').grid(row=1, column=0, sticky='e')
-        ttk.Entry(p3, textvariable=self.skill_lv, width=10).grid(row=1, column=1, sticky='w')
-        ttk.Label(p3, text='經驗 exp_').grid(row=2, column=0, sticky='e')
-        ttk.Entry(p3, textvariable=self.skill_exp, width=10).grid(row=2, column=1, sticky='w')
-        ttk.Button(p3, text='讀取', command=self.skill_load).grid(row=0, column=2, padx=6)
-        ttk.Button(p3, text='套用武功', command=self.apply_skill).grid(row=3, column=1, sticky='w', pady=6)
-        self.rrr = tk.StringVar()
-        ttk.Label(p3, text='半瓶醋次數 rrr').grid(row=4, column=0, sticky='e')
-        ttk.Entry(p3, textvariable=self.rrr, width=10).grid(row=4, column=1, sticky='w')
-        ttk.Button(p3, text='套用 rrr', command=self.apply_rrr).grid(row=4, column=2, padx=6)
-        p4 = ttk.Frame(nb)
-        nb.add(p4, text='開關')
-        self.aaa = tk.BooleanVar()
-        ttk.Checkbutton(p4, text='左右互搏 aaa（遊戲內驗證中）', variable=self.aaa).pack(anchor='w', padx=8, pady=8)
-        ttk.Button(p4, text='套用開關', command=self.apply_aaa).pack(anchor='w', padx=8)
-        ttk.Label(root, textvariable=self.status).pack(anchor='w', padx=8, pady=4)
+        root.title('金庸群侠传 2 · 存档管理器')
+        root.geometry('940x680')
+        root.minsize(840, 620)
+        self._configure_style()
+        self._build_header()
+        self._build_tabs()
+        self._build_footer()
         self.refresh()
+
+    def _configure_style(self):
+        style = ttk.Style(self.root)
+        try:
+            style.theme_use('clam')
+        except tk.TclError:
+            pass
+        style.configure('.', font=('Microsoft YaHei UI', 10))
+        style.configure('TNotebook.Tab', padding=(18, 9))
+        style.configure('TLabelframe.Label', font=('Microsoft YaHei UI', 10, 'bold'))
+        style.configure('Accent.TButton', font=('Microsoft YaHei UI', 10, 'bold'))
+        style.configure('Treeview', rowheight=28)
+        style.configure('Treeview.Heading', font=('Microsoft YaHei UI', 10, 'bold'))
+
+    def _build_header(self):
+        header = tk.Frame(self.root, bg='#172033', height=88)
+        header.pack(fill='x')
+        header.pack_propagate(False)
+        title_box = tk.Frame(header, bg='#172033')
+        title_box.pack(side='left', padx=22, pady=14)
+        tk.Label(title_box, text='金庸群侠传 2', bg='#172033', fg='white',
+                 font=('Microsoft YaHei UI', 19, 'bold')).pack(anchor='w')
+        tk.Label(title_box, text='存档管理器 · 自动备份 · 原子写入', bg='#172033', fg='#aebbd0',
+                 font=('Microsoft YaHei UI', 9)).pack(anchor='w')
+        controls = tk.Frame(header, bg='#172033')
+        controls.pack(side='right', padx=20)
+        tk.Label(controls, text='存档槽', bg='#172033', fg='#dbe5f5').pack(side='left', padx=(0, 7))
+        self.slot = tk.IntVar(value=1)
+        slot_box = ttk.Combobox(controls, textvariable=self.slot, values=(1, 2, 3),
+                                width=4, state='readonly')
+        slot_box.pack(side='left')
+        slot_box.bind('<<ComboboxSelected>>', lambda _event: self.refresh())
+        ttk.Button(controls, text='重新读取', command=self.refresh).pack(side='left', padx=8)
+        ttk.Button(controls, text='启动游戏', command=self.launch_game).pack(side='left')
+
+    def _build_tabs(self):
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill='both', expand=True, padx=16, pady=(14, 8))
+        self._build_character_tab()
+        self._build_attributes_tab()
+        self._build_skills_tab()
+        self._build_advanced_tab()
+
+    def _new_var(self, key):
+        var = tk.StringVar()
+        var.trace_add('write', lambda *_args: self.mark_dirty())
+        self.vars[key] = var
+        return var
+
+    def _build_character_tab(self):
+        tab = ttk.Frame(self.notebook, padding=18)
+        self.notebook.add(tab, text='角色')
+        ttk.Label(tab, text='姓名会同时更新姓、名和游戏显示用完整姓名。',
+                  foreground='#53627a').pack(anchor='w', pady=(0, 14))
+        form = ttk.LabelFrame(tab, text='身份信息', padding=16)
+        form.pack(fill='x')
+        form.columnconfigure(1, weight=1)
+        for row, (key, label) in enumerate(BASIC_FIELDS):
+            ttk.Label(form, text=label).grid(row=row, column=0, sticky='e', padx=(0, 12), pady=7)
+            ttk.Entry(form, textvariable=self._new_var(key), width=38).grid(
+                row=row, column=1, sticky='ew', pady=7)
+            ttk.Label(form, text=key, foreground='#8792a6').grid(row=row, column=2, sticky='w', padx=10)
+        note = ttk.LabelFrame(tab, text='安全说明', padding=16)
+        note.pack(fill='x', pady=16)
+        ttk.Label(note, text='保存时只修改变化过的字段，并在原存档旁创建唯一备份。\n'
+                             '游戏运行期间禁止写档，避免 Ruffle 退出时覆盖你的修改。',
+                  justify='left').pack(anchor='w')
+
+    def _build_attributes_tab(self):
+        tab = ttk.Frame(self.notebook, padding=12)
+        self.notebook.add(tab, text='属性')
+        for index, (title, fields) in enumerate(ATTRIBUTE_GROUPS):
+            group = ttk.LabelFrame(tab, text=title, padding=10)
+            group.grid(row=index // 2, column=index % 2, sticky='nsew', padx=6, pady=6)
+            tab.columnconfigure(index % 2, weight=1)
+            tab.rowconfigure(index // 2, weight=1)
+            group.columnconfigure(1, weight=1)
+            group.columnconfigure(3, weight=1)
+            for position, (key, label) in enumerate(fields):
+                row, pair = divmod(position, 2)
+                column = pair * 2
+                ttk.Label(group, text=label).grid(
+                    row=row, column=column, sticky='e', padx=(0 if column == 0 else 12, 6), pady=4)
+                ttk.Entry(group, textvariable=self._new_var(key), width=10).grid(
+                    row=row, column=column + 1, sticky='ew', pady=4)
+
+    def _build_skills_tab(self):
+        tab = ttk.Frame(self.notebook, padding=12)
+        self.notebook.add(tab, text='武功')
+        tab.columnconfigure(0, weight=1)
+        tab.rowconfigure(0, weight=1)
+        self.skill_tree = ttk.Treeview(tab, columns=('name', 'level', 'exp', 'state'), show='headings')
+        for key, title in (('name', '武功'), ('level', '等级'), ('exp', '经验'), ('state', '状态')):
+            self.skill_tree.heading(key, text=title)
+        self.skill_tree.column('name', width=250, anchor='w')
+        self.skill_tree.column('level', width=100, anchor='center')
+        self.skill_tree.column('exp', width=140, anchor='center')
+        self.skill_tree.column('state', width=100, anchor='center')
+        self.skill_tree.grid(row=0, column=0, sticky='nsew')
+        scrollbar = ttk.Scrollbar(tab, orient='vertical', command=self.skill_tree.yview)
+        scrollbar.grid(row=0, column=1, sticky='ns')
+        self.skill_tree.configure(yscrollcommand=scrollbar.set)
+        self.skill_tree.bind('<Double-1>', lambda _event: self.edit_selected_skill())
+        actions = ttk.Frame(tab)
+        actions.grid(row=1, column=0, sticky='ew', pady=(10, 0))
+        ttk.Label(actions, text='双击武功可编辑；修改会先进入待保存状态。',
+                  foreground='#53627a').pack(side='left')
+        ttk.Button(actions, text='撤销所选修改', command=self.reset_selected_skill).pack(side='right')
+        ttk.Button(actions, text='编辑所选武功', command=self.edit_selected_skill).pack(side='right', padx=8)
+
+    def _build_advanced_tab(self):
+        tab = ttk.Frame(self.notebook, padding=18)
+        self.notebook.add(tab, text='进阶')
+        group = ttk.LabelFrame(tab, text='特殊字段', padding=16)
+        group.pack(fill='x')
+        self.rrr = self._new_var('rrr')
+        ttk.Label(group, text='半瓶神仙醋次数').grid(row=0, column=0, sticky='e', padx=(0, 12), pady=8)
+        ttk.Entry(group, textvariable=self.rrr, width=16).grid(row=0, column=1, sticky='w')
+        ttk.Label(group, text='rrr', foreground='#8792a6').grid(row=0, column=2, sticky='w', padx=10)
+        self.aaa = tk.BooleanVar()
+        self.aaa.trace_add('write', lambda *_args: self.mark_dirty())
+        ttk.Checkbutton(group, text='左右互搏开关', variable=self.aaa).grid(
+            row=1, column=0, columnspan=2, sticky='w', pady=8)
+        ttk.Label(group, text='aaa（字段作用仍需游戏内验证）', foreground='#9a5b23').grid(
+            row=1, column=2, sticky='w', padx=10)
+
+    def _build_footer(self):
+        footer = ttk.Frame(self.root, padding=(16, 8, 16, 14))
+        footer.pack(fill='x')
+        self.status = tk.StringVar(value='正在读取存档…')
+        tk.Label(footer, textvariable=self.status, anchor='w', fg='#43516a',
+                 font=('Microsoft YaHei UI', 9)).pack(side='left', fill='x', expand=True)
+        ttk.Button(footer, text='放弃修改', command=self.refresh).pack(side='right', padx=(8, 0))
+        self.save_button = ttk.Button(footer, text='保存全部修改', style='Accent.TButton',
+                                      command=self.save_all)
+        self.save_button.pack(side='right')
+
+    def mark_dirty(self):
+        if not self.loading and self.path:
+            self.status.set('有尚未保存的修改')
 
     def save_path(self):
-        try:
-            return T.find_slot(self.slot.get())
-        except FileNotFoundError:
-            raise FileNotFoundError('slot%s 包內無存檔(先進遊戲存檔)' % self.slot.get())
+        return T.find_slot(self.slot.get())
 
-    def sol(self):
-        return T.Sol(self.save_path())
-
-    def clear_view(self):
-        for v in self.vars.values():
-            v.set('')
-        self.info.set('')
-        self.skill_lv.set('')
-        self.skill_exp.set('')
-        self.rrr.set('')
+    def _clear(self):
+        for var in self.vars.values():
+            var.set('')
         self.aaa.set(False)
+        self.skill_source.clear()
+        self.skill_pending.clear()
+        for item in self.skill_tree.get_children():
+            self.skill_tree.delete(item)
 
     def refresh(self):
-        self.clear_view()
+        self.loading = True
         try:
-            s = self.sol()
-        except Exception as e:
-            self.status.set(str(e))
+            self._clear()
+            try:
+                self.path = self.save_path()
+                sol = T.Sol(self.path)
+            except Exception:
+                self.path = None
+                self.loaded = {}
+                self.save_button.state(['disabled'])
+                self.status.set('存档槽 %d 尚无存档。点击“启动游戏”创建存档。' % self.slot.get())
+                return
+            entries = sol.entries
+            for key, var in self.vars.items():
+                if key not in entries:
+                    continue
+                value = entries[key]['val']
+                if key in ('name_1', 'name_2') and isinstance(value, str):
+                    value = inner_text(value)
+                var.set(number_text(value))
+            if 'aaa' in entries:
+                self.aaa.set(bool(entries['aaa']['val']))
+            self.loaded = self._form_snapshot()
+            self._load_skills(entries)
+            self.save_button.state(['!disabled'])
+            level = number_text(entries.get('LV', {}).get('val', '?'))
+            school = entries.get('Menpai', {}).get('val', '')
+            self.status.set('已读取槽 %d · LV %s · %s · %s' % (
+                self.slot.get(), level, school, self._short_path(self.path)))
+        finally:
+            self.loading = False
+
+    def _load_skills(self, entries):
+        for skill_id, _name in SKILLS:
+            level_key, exp_key = skill_keys(skill_id)
+            if level_key not in entries and exp_key not in entries:
+                continue
+            self.skill_source[skill_id] = {
+                'level_key': level_key, 'exp_key': exp_key,
+                'has_level': level_key in entries, 'has_exp': exp_key in entries,
+                'level': number_text(entries.get(level_key, {}).get('val')) if level_key in entries else '—',
+                'exp': number_text(entries.get(exp_key, {}).get('val')) if exp_key in entries else '—',
+            }
+        self._render_skills()
+
+    def _render_skills(self):
+        selected = self.skill_tree.selection()
+        selected_id = selected[0] if selected else None
+        for item in self.skill_tree.get_children():
+            self.skill_tree.delete(item)
+        for skill_id, name in SKILLS:
+            if skill_id not in self.skill_source:
+                continue
+            value = self.skill_pending.get(skill_id, self.skill_source[skill_id])
+            state = '待保存' if skill_id in self.skill_pending else ''
+            self.skill_tree.insert('', 'end', iid=skill_id,
+                                   values=(name, value['level'], value['exp'], state))
+        if selected_id and self.skill_tree.exists(selected_id):
+            self.skill_tree.selection_set(selected_id)
+
+    def edit_selected_skill(self):
+        selected = self.skill_tree.selection()
+        if not selected:
+            messagebox.showinfo('编辑武功', '请先选择一项武功。', parent=self.root)
             return
-        e = s.entries
-        for k, v in self.vars.items():
-            if k in e:
-                val = e[k]['val']
-                if isinstance(val, str) and k in ('name_1', 'name_2'):
-                    v.set(inner_text(val))
-                else:
-                    v.set('' if val is None else str(int(val)) if isinstance(val, float) and val.is_integer() else str(val))
-        lv = e.get('LV', {}).get('val', '?')
-        mp = e.get('Menpai', {}).get('val', '')
-        self.info.set('LV %s · %s' % (lv if lv == '?' else int(lv), mp))
-        self.skill_load()
-        if 'aaa' in e and e['aaa']['type'] == 0x00:
-            self.aaa.set(bool(e['aaa']['val']))
-        if 'rrr' in e:
-            self.rrr.set(str(int(e['rrr']['val'])))
-        self.status.set('已讀取 …%s' % os.path.join(*s.path.split(os.path.sep)[-4:]))
+        skill_id = selected[0]
+        source = self.skill_source[skill_id]
+        current = self.skill_pending.get(skill_id, source)
+        dialog = tk.Toplevel(self.root)
+        dialog.title('编辑 · %s' % SKILL_NAMES[skill_id])
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+        body = ttk.Frame(dialog, padding=18)
+        body.pack(fill='both', expand=True)
+        level = tk.StringVar(value=current['level'])
+        exp = tk.StringVar(value=current['exp'])
+        ttk.Label(body, text=SKILL_NAMES[skill_id], font=('Microsoft YaHei UI', 13, 'bold')).grid(
+            row=0, column=0, columnspan=2, sticky='w', pady=(0, 14))
+        ttk.Label(body, text='等级').grid(row=1, column=0, sticky='e', padx=(0, 10), pady=6)
+        level_entry = ttk.Entry(body, textvariable=level, width=18)
+        level_entry.grid(row=1, column=1, pady=6)
+        ttk.Label(body, text='经验').grid(row=2, column=0, sticky='e', padx=(0, 10), pady=6)
+        exp_entry = ttk.Entry(body, textvariable=exp, width=18)
+        exp_entry.grid(row=2, column=1, pady=6)
+        if not source['has_level']:
+            level_entry.state(['disabled'])
+        if not source['has_exp']:
+            exp_entry.state(['disabled'])
 
-    def done(self, msg, bak=None):
+        def accept():
+            try:
+                if source['has_level']:
+                    if level.get().strip() == '':
+                        raise ValueError('等级不可留空')
+                    T.parse_game_number(source['level_key'], level.get())
+                if source['has_exp']:
+                    if exp.get().strip() == '':
+                        raise ValueError('经验不可留空')
+                    T.parse_game_number(source['exp_key'], exp.get())
+            except Exception as exc:
+                messagebox.showerror('数值无效', str(exc), parent=dialog)
+                return
+            self.skill_pending[skill_id] = {
+                **source, 'level': level.get().strip(), 'exp': exp.get().strip(),
+            }
+            self._render_skills()
+            self.mark_dirty()
+            dialog.destroy()
+
+        buttons = ttk.Frame(body)
+        buttons.grid(row=3, column=0, columnspan=2, sticky='e', pady=(14, 0))
+        ttk.Button(buttons, text='取消', command=dialog.destroy).pack(side='right')
+        ttk.Button(buttons, text='加入待保存', command=accept).pack(side='right', padx=8)
+        dialog.bind('<Return>', lambda _event: accept())
+
+    def reset_selected_skill(self):
+        selected = self.skill_tree.selection()
+        if selected and selected[0] in self.skill_pending:
+            del self.skill_pending[selected[0]]
+            self._render_skills()
+            self.mark_dirty()
+
+    def _form_snapshot(self):
+        values = {key: var.get() for key, var in self.vars.items()}
+        values['aaa'] = '1' if self.aaa.get() else '0'
+        return values
+
+    def _changed_form(self):
+        current = self._form_snapshot()
+        return {key: value for key, value in current.items() if value != self.loaded.get(key, '')}
+
+    def save_all(self):
+        if not self.path:
+            messagebox.showinfo('尚无存档', '请先启动游戏并建立存档。', parent=self.root)
+            return
+        changed = self._changed_form()
+        if not changed and not self.skill_pending:
+            self.status.set('没有需要保存的修改')
+            return
+        try:
+            with T.edit_sol(self.path) as sol:
+                count = self._apply_form_changes(sol, changed)
+                count += self._apply_skill_changes(sol)
+                if count == 0:
+                    self.status.set('没有可写入的字段')
+                    return
+                backup = sol.backup()
+                sol.save()
+        except (Exception, SystemExit) as exc:
+            messagebox.showerror('保存失败', str(exc), parent=self.root)
+            return
         self.refresh()
-        self.status.set(msg + ((' 備份:%s' % bak) if bak else ''))
+        self.status.set('已保存 %d 项修改 · 备份 %s' % (count, os.path.basename(backup)))
 
-    def apply_basic(self):
-        try:
-            with T.edit_sol(self.save_path()) as s:
-                for k in ('name_1', 'name_2', 'jjj', 'Menpai', 'Chenhao'):
-                    if k not in s.entries:
-                        continue
-                    en = s.entries[k]
-                    if en['type'] != 0x02:
-                        continue
-                    text = self.vars[k].get()
-                    if k in ('name_1', 'name_2'):
-                        s.set_named(k, text)
-                    else:
-                        s.set_string(k, text)
-                # 遊戲顯示用的是 name（兩段內文各放姓/名），逐段同步
-                if 'name' in s.entries and s.entries['name']['type'] == 0x02:
-                    s.set_full_name(self.vars['name_1'].get(), self.vars['name_2'].get())
-                bak = s.backup()
-                s.save()
-            self.done('基本已寫入', bak)
-        except Exception as e:
-            messagebox.showerror('失敗', str(e))
+    def _apply_form_changes(self, sol, changed):
+        count = 0
+        if 'name_1' in changed or 'name_2' in changed:
+            for key in ('name_1', 'name_2', 'name'):
+                if key not in sol.entries or sol.entries[key]['type'] != 0x02:
+                    raise ValueError('存档缺少姓名字段 %s' % key)
+            xing, ming = self.vars['name_1'].get().strip(), self.vars['name_2'].get().strip()
+            if not xing or not ming:
+                raise ValueError('姓和名不可留空')
+            sol.set_named('name_1', xing)
+            sol.set_named('name_2', ming)
+            sol.set_full_name(xing, ming)
+            count += 3
+        for key, _label in BASIC_FIELDS[2:]:
+            if key in changed and key in sol.entries:
+                if sol.entries[key]['type'] != 0x02:
+                    raise ValueError('%s 不是文字字段' % key)
+                sol.set_string(key, changed[key])
+                count += 1
+        numeric_keys = {key for _group, fields in ATTRIBUTE_GROUPS for key, _label in fields}
+        numeric_keys.update(('rrr', 'aaa'))
+        for key in numeric_keys:
+            if key not in changed or key not in sol.entries:
+                continue
+            if sol.entries[key]['type'] != 0x00:
+                raise ValueError('%s 不是数值字段' % key)
+            value = changed[key].strip()
+            if value == '':
+                raise ValueError('%s 不可留空' % key)
+            T.parse_game_number(key, value)
+            sol.set_number(key, value)
+            count += 1
+        return count
 
-    def apply_attrs(self):
-        try:
-            with T.edit_sol(self.save_path()) as s:
-                for k in ATTRS:
-                    t = self.vars[k].get().strip()
-                    if t == '' or k not in s.entries:
-                        continue
-                    en = s.entries[k]
-                    if en['type'] != 0x00:
-                        continue
-                    T.parse_game_number(k, t)
-                    s.set_number(k, t)
-                bak = s.backup()
-                s.save()
-            self.done('屬性已寫入', bak)
-        except Exception as e:
-            messagebox.showerror('失敗', str(e))
+    def _apply_skill_changes(self, sol):
+        count = 0
+        for values in self.skill_pending.values():
+            for key, value_name in ((values['level_key'], 'level'), (values['exp_key'], 'exp')):
+                if key not in sol.entries or values[value_name] == '—':
+                    continue
+                value = values[value_name]
+                T.parse_game_number(key, value)
+                sol.set_number(key, value)
+                count += 1
+        return count
 
-    @staticmethod
-    def slabel(sid):
-        for i, n in SKILLS:
-            if i == sid:
-                return '%s (%s)' % (n, i)
-        return sid
-
-    @staticmethod
-    def sid_of(label):
-        if '(' in label and label.endswith(')'):
-            return label.rsplit('(', 1)[1][:-1]
-        return label
-
-    def skill_load(self):
-        try:
-            s = self.sol()
-            sid = self.sid_of(self.skill.get())
-            lvk, exk = ('kkk', 'lll') if sid == 'kkk' else (('hhh', 'iii') if sid == 'hhh' else ('lv_' + sid, 'exp_' + sid))
-            self.skill_lv.set('' if lvk not in s.entries else str(int(s.entries[lvk]['val'])))
-            self.skill_exp.set('' if exk not in s.entries else str(int(s.entries[exk]['val'])))
-        except Exception:
-            self.skill_lv.set('')
-            self.skill_exp.set('')
-
-    def apply_skill(self):
-        try:
-            with T.edit_sol(self.save_path()) as s:
-                sid = self.sid_of(self.skill.get())
-                lvk, exk = ('kkk', 'lll') if sid == 'kkk' else (('hhh', 'iii') if sid == 'hhh' else ('lv_' + sid, 'exp_' + sid))
-                for k, v in ((lvk, self.skill_lv.get()), (exk, self.skill_exp.get())):
-                    if v.strip() == '' or k not in s.entries:
-                        continue
-                    T.parse_game_number(k, v)
-                    s.set_number(k, v)
-                bak = s.backup()
-                s.save()
-            self.done('武功已寫入', bak)
-        except Exception as e:
-            messagebox.showerror('失敗', str(e))
-
-    def apply_rrr(self):
-        try:
-            with T.edit_sol(self.save_path()) as s:
-                T.parse_game_number('rrr', self.rrr.get())
-                s.set_number('rrr', self.rrr.get())
-                bak = s.backup()
-                s.save()
-            self.done('rrr 已寫入', bak)
-        except Exception as e:
-            messagebox.showerror('失敗', str(e))
-
-    def apply_aaa(self):
-        try:
-            with T.edit_sol(self.save_path()) as s:
-                if 'aaa' not in s.entries or s.entries['aaa']['type'] != 0x00:
-                    raise ValueError('此存檔沒有可修改的 aaa 數字欄位')
-                s.set_number('aaa', '1' if self.aaa.get() else '0')
-                bak = s.backup()
-                s.save()
-            self.done('aaa 已寫入', bak)
-        except Exception as e:
-            messagebox.showerror('失敗', str(e))
-
-    def launch(self):
+    def launch_game(self):
         try:
             if T.ruffle_running():
-                raise RuntimeError('已經有 Ruffle 遊戲在執行，請先退出')
-            pkg = pkg_root()
-            engine = os.path.join(pkg, 'resource', 'engine', 'ruffle.exe')
-            movie = os.path.join(pkg, 'resource', 'assets', 'jy2', 'jy2.swf')
-            save_dir = os.path.join(pkg, 'save')
-            for required in (engine, movie):
-                if not os.path.isfile(required):
-                    raise FileNotFoundError('缺少必要檔案：%s' % required)
-            os.makedirs(save_dir, exist_ok=True)
-            migrated = T.migrate_legacy_slots()
-            subprocess.Popen([engine, movie, '--save-directory', save_dir], cwd=pkg)
-            if migrated:
-                self.status.set('已遷移 %d 個舊存檔槽並啟動遊戲' % len(migrated))
-            else:
-                self.status.set('遊戲已啟動')
-        except Exception as e:
-            messagebox.showerror('啟動失敗', str(e))
+                raise RuntimeError('游戏已经在运行，请先关闭现有窗口')
+            package = pkg_root()
+            launcher = os.path.join(package, '金庸群俠傳2.exe')
+            if not os.path.isfile(launcher):
+                raise FileNotFoundError('找不到游戏启动器：%s' % launcher)
+            subprocess.Popen([launcher], cwd=package)
+            self.status.set('游戏启动器已打开')
+        except Exception as exc:
+            messagebox.showerror('启动失败', str(exc), parent=self.root)
+
+    @staticmethod
+    def _short_path(path):
+        parts = path.split(os.path.sep)
+        return '…' + os.path.join(*parts[-4:]) if len(parts) >= 4 else path
 
 
 def main():

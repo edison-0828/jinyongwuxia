@@ -354,7 +354,14 @@ class Sol:
                 shutil.copymode(self.path, tmp)
             except OSError:
                 pass
-            os.replace(tmp, self.path)
+            for attempt in range(5):
+                try:
+                    os.replace(tmp, self.path)
+                    break
+                except PermissionError:
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.05 * (attempt + 1))
         finally:
             if os.path.exists(tmp):
                 os.unlink(tmp)

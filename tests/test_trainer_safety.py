@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / 'tools'))
 
 import trainer  # noqa: E402
 import launch_jy2  # noqa: E402
+import gui_jy2  # noqa: E402
 
 
 def write_sol(path, entries):
@@ -86,6 +87,27 @@ class AtomicSaveTests(unittest.TestCase):
         sol.set_number('LV', '8')
         sol.save()
         self.assertEqual(trainer.Sol(str(self.path)).entries['LV']['val'], 8)
+
+    def test_atomic_replace_retries_a_transient_windows_lock(self):
+        sol = trainer.Sol(str(self.path))
+        sol.set_number('LV', '6')
+        real_replace = os.replace
+        attempts = 0
+
+        def flaky_replace(source, destination):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise PermissionError(5, 'transient lock')
+            return real_replace(source, destination)
+
+        with mock.patch.object(trainer.os, 'replace', side_effect=flaky_replace), \
+                mock.patch.object(trainer.time, 'sleep') as sleep:
+            sol.save()
+
+        self.assertEqual(attempts, 2)
+        sleep.assert_called_once()
+        self.assertEqual(trainer.Sol(str(self.path)).entries['LV']['val'], 6)
 
     def test_modifier_lock_rejects_a_second_writer(self):
         with mock.patch.object(trainer, 'ensure_game_closed'):
@@ -173,6 +195,34 @@ class InitialNameHelperTests(unittest.TestCase):
             self.assertEqual(changed.entries['name_1']['val'], '令狐')
             self.assertEqual(changed.entries['name_2']['val'], '沖')
             self.assertEqual(changed.entries['name']['val'], '令狐沖')
+
+
+class ModifierModelTests(unittest.TestCase):
+    def test_unified_save_updates_only_requested_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'gamezly.sol'
+            write_sol(path, [
+                ('name_1', 'S', 'Lin'), ('name_2', 'S', 'Ping'),
+                ('name', 'S', 'LinPing'), ('jjj', 'S', 'OldSkill'),
+                ('LV', 'N', 1), ('Y_Z', 'N', 100), ('aaa', 'N', 0),
+            ])
+            app = object.__new__(gui_jy2.App)
+            app.vars = {
+                'name_1': mock.Mock(get=lambda: '令狐'),
+                'name_2': mock.Mock(get=lambda: '冲'),
+            }
+            sol = trainer.Sol(str(path))
+            count = app._apply_form_changes(sol, {
+                'name_1': '令狐', 'name_2': '冲', 'LV': '12',
+            })
+            sol.save()
+
+            changed = trainer.Sol(str(path))
+            self.assertEqual(count, 4)
+            self.assertEqual(changed.entries['name']['val'], '令狐冲')
+            self.assertEqual(changed.entries['LV']['val'], 12)
+            self.assertEqual(changed.entries['Y_Z']['val'], 100)
+            self.assertEqual(changed.entries['jjj']['val'], 'OldSkill')
 
 
 if __name__ == '__main__':

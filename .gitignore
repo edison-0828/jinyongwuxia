@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.bak.*
+.venv-build/
+build-dist/
+build-work/
+.pytest_cache/
+jy23-remake/save/*
+!jy23-remake/save/.gitkeep

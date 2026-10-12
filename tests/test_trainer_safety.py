@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'tools'))
 
 import trainer  # noqa: E402
+import launch_jy2  # noqa: E402
 
 
 def write_sol(path, entries):
@@ -139,6 +140,39 @@ class SaveMigrationTests(unittest.TestCase):
             self.assertTrue((old_a / 'gamezly.sol').is_file())
             self.assertTrue((old_b / 'gamezly.sol').is_file())
             self.assertEqual(trainer.Sol(str(copied)).entries['LV']['val'], 9)
+
+
+class InitialNameHelperTests(unittest.TestCase):
+    def test_applies_chinese_name_to_newest_slot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            old = Path(tmp) / 'gamezly.sol'
+            newest = Path(tmp) / 'gamelzy.sol'
+            fields = [('name_1', 'S', 'Lin'), ('name_2', 'S', 'Ping'),
+                      ('name', 'S', 'LinPing')]
+            write_sol(old, fields)
+            write_sol(newest, fields)
+            os.utime(old, (1, 1))
+            os.utime(newest, (2, 2))
+
+            def fake_find_slot(slot):
+                if slot == 1:
+                    return str(old)
+                if slot == 2:
+                    return str(newest)
+                raise FileNotFoundError
+
+            with mock.patch.object(launch_jy2, 'find_slot', side_effect=fake_find_slot), \
+                    mock.patch.object(trainer, 'ensure_game_closed'):
+                slot, path, backup = launch_jy2.apply_name_to_latest_slot('令狐', '沖')
+
+            self.assertEqual(slot, 2)
+            self.assertEqual(path, str(newest))
+            self.assertTrue(Path(backup).is_file())
+            self.assertEqual(trainer.Sol(str(old)).entries['name']['val'], 'LinPing')
+            changed = trainer.Sol(str(newest))
+            self.assertEqual(changed.entries['name_1']['val'], '令狐')
+            self.assertEqual(changed.entries['name_2']['val'], '沖')
+            self.assertEqual(changed.entries['name']['val'], '令狐沖')
 
 
 if __name__ == '__main__':

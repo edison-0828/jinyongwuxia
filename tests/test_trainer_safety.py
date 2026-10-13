@@ -50,6 +50,22 @@ class NumberValidationTests(unittest.TestCase):
         self.assertEqual(trainer.parse_game_number('LV', '99'), 99)
 
 
+class LauncherGraphicsTests(unittest.TestCase):
+    def test_jy2_launcher_defaults_to_dx12(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            command = launch_jy2.build_game_command('ruffle.exe', 'jy2.swf', 'save')
+        self.assertEqual(
+            command,
+            ['ruffle.exe', 'jy2.swf', '--graphics', 'dx12', '--save-directory', 'save'],
+        )
+
+    def test_jy2_launcher_allows_supported_backend_override(self):
+        with mock.patch.dict(os.environ, {'JY2_RUFFLE_GRAPHICS': 'gl'}, clear=True):
+            self.assertEqual(launch_jy2.ruffle_graphics_backend(), 'gl')
+        with mock.patch.dict(os.environ, {'JY2_RUFFLE_GRAPHICS': 'unknown'}, clear=True):
+            self.assertEqual(launch_jy2.ruffle_graphics_backend(), 'dx12')
+
+
 class AtomicSaveTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

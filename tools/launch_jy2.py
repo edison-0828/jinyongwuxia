@@ -9,6 +9,23 @@ from amf import pkg_root  # noqa: E402
 from trainer import Sol, edit_guard, find_slot, migrate_legacy_slots, ruffle_running  # noqa: E402
 
 
+RUFFLE_GRAPHICS_BACKENDS = {'default', 'vulkan', 'metal', 'dx12', 'gl'}
+
+
+def ruffle_graphics_backend():
+    """Prefer DX12 on Windows to avoid the Vulkan wgpu OOM crash."""
+    backend = os.environ.get('JY2_RUFFLE_GRAPHICS', 'dx12').strip().lower()
+    return backend if backend in RUFFLE_GRAPHICS_BACKENDS else 'dx12'
+
+
+def build_game_command(engine, movie, save_dir):
+    return [
+        engine, movie,
+        '--graphics', ruffle_graphics_backend(),
+        '--save-directory', save_dir,
+    ]
+
+
 def show_message(message, title='金庸群俠傳2', flags=0):
     try:
         import ctypes
@@ -104,9 +121,7 @@ def main():
         fail('存檔搬遷檢查失敗：%s' % exc)
 
     pending_name = ask_initial_chinese_name() if latest_slot() is None else None
-    game = subprocess.Popen([
-        engine, movie, '--save-directory', save_dir,
-    ], cwd=pkg)
+    game = subprocess.Popen(build_game_command(engine, movie, save_dir), cwd=pkg)
     if pending_name is None:
         return
 

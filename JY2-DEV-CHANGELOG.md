@@ -42,3 +42,11 @@
 - 保留跨程序鎖、數值檢查、唯一備份、原子寫入及回讀驗證。
 - Windows 短暫佔用存檔時，原子替換會有限次退避重試，降低偶發 `WinError 5`。
 - 測試增加至 12 項。
+
+## 2026-10-13：Ruffle 顯示後端穩定性修復
+
+- JY2 啟動器在 Windows 上預設指定 Ruffle 使用 DirectX 12，避開 Intel 顯示核心下
+  Vulkan/wgpu 長時間運行可能出現的 `Out of Memory` 致命錯誤。
+- 可透過環境變數 `JY2_RUFFLE_GRAPHICS` 臨時切換 `default`、`vulkan`、`dx12` 或 `gl`，
+  無效值會安全回退到 `dx12`。
+- 增加啟動命令測試，防止日後打包時遺失渲染後端參數。

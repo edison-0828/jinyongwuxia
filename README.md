@@ -36,6 +36,7 @@
 ## 技術說明
 
 - 播放核心：Ruffle 0.7.1（MIT/Apache，pin 版，不自動更新）。
+- JY2 在 Windows 預設使用 DirectX 12 渲染，避開部分 Intel 顯示核心的 Vulkan/wgpu 記憶體錯誤；可用 `JY2_RUFFLE_GRAPHICS` 覆蓋。
 - 修改器/轉換橋：Python 自寫，源碼在 `resource/tools/`。
 - 字體：方正楷体、方正仿宋（免費商用）子集版。
 - 中文取名：Ruffle 上游尚未支援 CJK 輸入法。首次啟動且沒有存檔時，啟動器會先收集正式中文姓名；遊戲內暫填英文、建立存檔並退出後，啟動器會自動回寫中文姓名。既有存檔仍可用修改器改名。
